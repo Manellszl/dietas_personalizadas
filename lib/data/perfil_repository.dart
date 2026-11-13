@@ -25,7 +25,7 @@ class PerfilRepository {
 
       return await openDatabase(
         caminho,
-        version: 1,
+        version: 2,
         onCreate: (banco, versao) async {
           await banco.execute('''
             CREATE TABLE perfil (
@@ -33,9 +33,28 @@ class PerfilRepository {
               nome TEXT NOT NULL,
               idade INTEGER NOT NULL,
               peso REAL NOT NULL,
-              meta TEXT NOT NULL
+              meta TEXT NOT NULL,
+              sexo TEXT,
+              altura INTEGER,
+              pratica_atividade INTEGER NOT NULL DEFAULT 0,
+              dias_atividade INTEGER NOT NULL DEFAULT 0
             )
           ''');
+        },
+        // v1 -> v2: acrescenta colunas sem apagar o perfil já salvo.
+        onUpgrade: (banco, versaoAntiga, versaoNova) async {
+          if (versaoAntiga < 2) {
+            await banco.execute('ALTER TABLE perfil ADD COLUMN sexo TEXT');
+            await banco.execute('ALTER TABLE perfil ADD COLUMN altura INTEGER');
+            await banco.execute(
+              'ALTER TABLE perfil ADD COLUMN pratica_atividade '
+              'INTEGER NOT NULL DEFAULT 0',
+            );
+            await banco.execute(
+              'ALTER TABLE perfil ADD COLUMN dias_atividade '
+              'INTEGER NOT NULL DEFAULT 0',
+            );
+          }
         },
       );
     } on DatabaseException {

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import '../models/perfil.dart';
 import '../data/recomendacoes_repository.dart';
+import 'tela_cadastro.dart';
 
 class TelaPrincipal extends StatefulWidget {
   const TelaPrincipal({
     super.key,
     required this.perfil,
+    required this.onEditarPerfil,
   });
 
   final Perfil perfil;
+  final Future<void> Function(Perfil perfil) onEditarPerfil;
 
   @override
   State<TelaPrincipal> createState() => _TelaPrincipalState();
@@ -45,6 +48,17 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     setState(() {
       _refeicoes.add(_RefeicaoRegistro(nome));
     });
+  }
+
+  void _editarPerfil() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TelaCadastro(
+          perfilInicial: widget.perfil,
+          onSalvar: widget.onEditarPerfil,
+        ),
+      ),
+    );
   }
 
   void _abrirRefeicoes() {
@@ -447,17 +461,49 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                       _linhaPerfil(
                         Icons.height,
                         'Altura',
-                        'Não informada',
+                        perfil.alturaCm == null
+                            ? 'Não informada'
+                            : '${perfil.alturaCm} cm',
+                      ),
+                      const Divider(height: 1),
+                      _linhaPerfil(
+                        Icons.person_outline,
+                        'Sexo',
+                        perfil.sexo ?? 'Não informado',
+                      ),
+                      const Divider(height: 1),
+                      _linhaPerfil(
+                        Icons.directions_run,
+                        'Atividade física',
+                        perfil.praticaAtividade
+                            ? '${perfil.diasAtividade} dia(s) por semana'
+                            : 'Não pratica',
                       ),
                       const Divider(height: 1),
                       _linhaPerfil(
                         Icons.favorite_border,
                         'IMC',
-                        'Não calculado',
+                        perfil.imc == null
+                            ? 'Não calculado'
+                            : perfil.imc!.toStringAsFixed(1),
                       ),
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 14),
+              if (perfil.incompleto)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    'Complete seu perfil: faltam altura e sexo.',
+                    style: TextStyle(color: Color(0xFFB3261E)),
+                  ),
+                ),
+              FilledButton.icon(
+                onPressed: _editarPerfil,
+                icon: const Icon(Icons.edit),
+                label: const Text('Editar perfil'),
               ),
               const SizedBox(height: 14),
               const Text(

@@ -18,6 +18,8 @@ class TelaInicial extends StatefulWidget {
 
 class _TelaInicialState extends State<TelaInicial> {
   late Future<Perfil?> _perfilFuture;
+  // Perfil após edição: evita recarregar a tela e perder as refeições do dia.
+  Perfil? _perfilEditado;
 
   @override
   void initState() {
@@ -34,6 +36,13 @@ class _TelaInicialState extends State<TelaInicial> {
     if (!mounted) return;
 
     setState(_carregarPerfil);
+  }
+
+  Future<void> _editarPerfil(Perfil perfil) async {
+    await widget.repository.salvarPerfil(perfil);
+    if (!mounted) return;
+
+    setState(() => _perfilEditado = perfil);
   }
 
   @override
@@ -80,12 +89,12 @@ class _TelaInicialState extends State<TelaInicial> {
           );
         }
 
-        final perfil = snapshot.data;
+        final perfil = _perfilEditado ?? snapshot.data;
         if (perfil == null) {
           return TelaCadastro(onSalvar: _salvarPerfil);
         }
 
-        return TelaPrincipal(perfil: perfil);
+        return TelaPrincipal(perfil: perfil, onEditarPerfil: _editarPerfil);
       },
     );
   }
