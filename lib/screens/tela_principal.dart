@@ -216,12 +216,66 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
   }
 
   Future<void> _removerRefeicao(RefeicaoSalva refeicao) async {
-    if (refeicao.id == null) return;
-
-    await _repository.removerRefeicao(refeicao.id!);
-
-    await _carregarDia();
-    await _atualizarResumoDia();
+    final id = refeicao.id;
+    if (id == null) return;
+    final rotina = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir refeição'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Como deseja excluir ${refeicao.nome}?'),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.calendar_today),
+              title: const Text('Somente deste dia'),
+              subtitle: const Text('Exclui a refeição e seus alimentos nesta data.'),
+              onTap: () => Navigator.pop(dialogContext, false),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_busy, color: Colors.red),
+              title: const Text('Excluir da rotina'),
+              subtitle: const Text('Exclui desta data em diante, inclusive alimentos já registrados. Preserva os dias anteriores.'),
+              onTap: () => Navigator.pop(dialogContext, true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+        ],
+      ),
+    );
+    if (!mounted || rotina == null) return;
+    try {
+      if (rotina) {
+        final confirmar = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Confirmar exclusão da rotina'),
+            content: Text('Excluir ${refeicao.nome} e seus alimentos desta data em diante? Esta ação não pode ser desfeita.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Excluir')),
+            ],
+          ),
+        );
+        if (!mounted || confirmar != true) return;
+        await _repository.removerRefeicaoDaRotina(id: id, metaAtual: _metaCaloriasDia, avaliarMeta: _avaliarMeta);
+      } else {
+        await _repository.removerRefeicao(id);
+      }
+      if (!mounted) return;
+      await _carregarDia();
+      if (rotina) {
+        await _carregarCalendario();
+        await _carregarInicio();
+      } else {
+        await _atualizarResumoDia();
+      }
+    } catch (e) {
+      if (mounted) _mostrarErro('Não foi possível excluir a refeição.');
+    }
   }
 
   Future<void> _marcarRefeicao(RefeicaoSalva refeicao, bool marcada) async {
