@@ -99,7 +99,7 @@ class RefeicoesRepository {
 
     return openDatabase(
       caminho,
-      version: 4,
+      version: 5,
       onConfigure: (banco) async {
         await banco.execute('PRAGMA foreign_keys = ON');
       },
@@ -107,6 +107,7 @@ class RefeicoesRepository {
         await _criarTabelas(banco);
       },
       onUpgrade: (banco, antiga, nova) async {
+        if (antiga < 5) { await _criarHidratacao(banco); }
         if (antiga < 2) {
           await _criarTabelaResumo(banco);
         }
@@ -145,6 +146,23 @@ class RefeicoesRepository {
     await _criarTabelaResumo(banco);
     await _criarCatalogos(banco);
     await _criarFavoritos(banco);
+    await _criarHidratacao(banco);
+  }
+
+  Future<void> _criarHidratacao(DatabaseExecutor banco) async {
+    await banco.execute('CREATE TABLE IF NOT EXISTS hidratacao_diaria (data TEXT PRIMARY KEY, copos INTEGER NOT NULL DEFAULT 0, meta_ml INTEGER NOT NULL DEFAULT 2000)');
+  }
+
+  Future<({int copos, int metaMl})> buscarHidratacao(DateTime data) async {
+    final banco = await _database;
+    final linhas = await banco.query('hidratacao_diaria', where: 'data = ?', whereArgs: [dataComoTexto(data)]);
+    if (linhas.isEmpty) return (copos: 0, metaMl: 2000);
+    return (copos: linhas.first['copos'] as int, metaMl: linhas.first['meta_ml'] as int);
+  }
+
+  Future<void> salvarHidratacao(DateTime data, int copos, int metaMl) async {
+    final banco = await _database;
+    await banco.insert('hidratacao_diaria', {'data': dataComoTexto(data), 'copos': copos, 'meta_ml': metaMl}, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> _criarTabelaResumo(DatabaseExecutor banco) async {
@@ -417,6 +435,51 @@ class RefeicoesRepository {
       await tx.insert('refeicoes_excluidas', {'nome': nome, 'data': data},
           conflictAlgorithm: ConflictAlgorithm.ignore);
       await tx.delete('refeicoes', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
+  // Remove a rotina e os registros a partir da data escolhida.
+  Future<void> removerRefeicaoDaRotina({
+    required int id,
+    required int? metaAtual,
+    required bool Function(int, int) avaliarMeta,
+  }) async {
+    final banco = await _database;
+    await banco.transaction((tx) async {
+      final rows = await tx.query('refeicoes', where: 'id = ?', whereArgs: [id]);
+      if (rows.isEmpty) return;
+      final nome = rows.first['nome'] as String;
+      final data = rows.first['data'] as String;
+      final afetadas = await tx.query('refeicoes', columns: ['data'],
+          distinct: true, where: 'nome = ? COLLATE NOCASE AND data >= ?',
+          whereArgs: [nome, data]);
+      await tx.delete('rotina_refeicoes', where: 'nome = ? COLLATE NOCASE',
+          whereArgs: [nome]);
+      await tx.delete('refeicoes', where: 'nome = ? COLLATE NOCASE AND data >= ?',
+          whereArgs: [nome, data]);
+      for (final item in afetadas) {
+        final dia = item['data'] as String;
+        await tx.insert('refeicoes_excluidas', {'nome': nome, 'data': dia},
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+        final totais = await tx.rawQuery(
+          'SELECT COUNT(a.id) AS quantidade, '
+          'COALESCE(SUM(a.gramas * a.calorias_por_100g / 100.0), 0) AS total '
+          'FROM alimentos a JOIN refeicoes r ON r.id = a.refeicao_id WHERE r.data = ?',
+          [dia],
+        );
+        if ((totais.first['quantidade'] as num) == 0) {
+          await tx.delete('resumo_diario', where: 'data = ?', whereArgs: [dia]);
+          continue;
+        }
+        final anterior = await tx.query('resumo_diario', where: 'data = ?', whereArgs: [dia]);
+        final meta = anterior.isEmpty ? metaAtual : anterior.first['meta'] as int;
+        if (meta == null) continue;
+        final total = (totais.first['total'] as num).round();
+        await tx.insert('resumo_diario', {
+          'data': dia, 'meta': meta, 'consumidas': total,
+          'atingiu_meta': avaliarMeta(total, meta) ? 1 : 0,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
     });
   }
 
