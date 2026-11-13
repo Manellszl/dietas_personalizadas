@@ -35,49 +35,16 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
       RecomendacoesRepository.paraMeta(widget.perfil.meta);
 
   Future<void> _adicionarRefeicao() async {
-    final controller = TextEditingController();
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (context) => const _DialogAdicionarRefeicao(),
+    );
 
-    try {
-      final nome = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Adicionar refeição'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Nome da refeição',
-              hintText: 'Ex.: Lanche da tarde',
-              border: OutlineInputBorder(),
-            ),
-            onSubmitted: (_) {
-              Navigator.of(context).pop(controller.text.trim());
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(controller.text.trim());
-              },
-              child: const Text('Adicionar'),
-            ),
-          ],
-        ),
-      );
+    if (!mounted || nome == null || nome.isEmpty) return;
 
-      if (!mounted || nome == null || nome.isEmpty) return;
-
-      setState(() {
-        _refeicoes.add(_RefeicaoRegistro(nome));
-      });
-    } finally {
-      controller.dispose();
-    }
+    setState(() {
+      _refeicoes.add(_RefeicaoRegistro(nome));
+    });
   }
 
   void _abrirRefeicoes() {
@@ -626,6 +593,62 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DialogAdicionarRefeicao extends StatefulWidget {
+  const _DialogAdicionarRefeicao();
+
+  @override
+  State<_DialogAdicionarRefeicao> createState() =>
+      _DialogAdicionarRefeicaoState();
+}
+
+class _DialogAdicionarRefeicaoState extends State<_DialogAdicionarRefeicao> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _enviar() {
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Adicionar refeição'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(
+          labelText: 'Nome da refeição',
+          hintText: 'Ex.: Lanche da tarde',
+          border: OutlineInputBorder(),
+        ),
+        onSubmitted: (_) => _enviar(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _enviar,
+          child: const Text('Adicionar'),
+        ),
+      ],
     );
   }
 }
