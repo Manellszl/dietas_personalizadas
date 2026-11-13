@@ -44,19 +44,11 @@ class RecomendacoesRepository {
 
     final catalogoPorCategoria = <String, List<SugestaoRefeicao>>{
       'Café da manhã': [
-        ..._cafesDaManha.map(
-          (nome) => _criarSugestao(nome, 'Café da manhã'),
-        ),
+        ..._cafesDaManha.map((nome) => _criarSugestao(nome, 'Café da manhã')),
       ],
-      'Almoço': [
-        ..._almocos.map((nome) => _criarSugestao(nome, 'Almoço')),
-      ],
-      'Lanche': [
-        ..._lanches.map((nome) => _criarSugestao(nome, 'Lanche')),
-      ],
-      'Jantar': [
-        ..._jantares.map((nome) => _criarSugestao(nome, 'Jantar')),
-      ],
+      'Almoço': [..._almocos.map((nome) => _criarSugestao(nome, 'Almoço'))],
+      'Lanche': [..._lanches.map((nome) => _criarSugestao(nome, 'Lanche'))],
+      'Jantar': [..._jantares.map((nome) => _criarSugestao(nome, 'Jantar'))],
     };
 
     for (final sugestao in [...sugestoesDaMeta, ..._sugestoesGerais]) {
@@ -182,7 +174,8 @@ class RecomendacoesRepository {
     SugestaoRefeicao(
       nome: 'Omelete com aveia e banana',
       categoria: 'Café da manhã',
-      descricao: 'Ovos, aveia e banana em uma opção prática para começar o dia.',
+      descricao:
+          'Ovos, aveia e banana em uma opção prática para começar o dia.',
     ),
     SugestaoRefeicao(
       nome: 'Arroz, feijão, frango e legumes',
@@ -497,7 +490,8 @@ class RecomendacoesRepository {
     SugestaoRefeicao(
       nome: 'Arroz integral com feijão',
       categoria: 'Almoço',
-      descricao: 'Uma combinação tradicional que pode fazer parte de uma alimentação variada.',
+      descricao:
+          'Uma combinação tradicional que pode fazer parte de uma alimentação variada.',
     ),
     SugestaoRefeicao(
       nome: 'Fruta com iogurte natural',
