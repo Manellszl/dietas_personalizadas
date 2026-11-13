@@ -18,7 +18,7 @@ class TelaInicial extends StatefulWidget {
 
 class _TelaInicialState extends State<TelaInicial> {
   late Future<Perfil?> _perfilFuture;
-  // Perfil após edição: evita recarregar a tela e perder as refeições do dia.
+  // atualiza o perfil sem recarregar a tela, pra não perder as refeições do dia
   Perfil? _perfilEditado;
 
   @override

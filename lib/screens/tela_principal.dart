@@ -492,6 +492,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                 ),
               ),
               const SizedBox(height: 14),
+              // aviso pra quem cadastrou antes e não tem altura/sexo
               if (perfil.incompleto)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 10),

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/perfil.dart';
 
-/// Tela de cadastro inicial. Também serve para editar o perfil
-/// quando [perfilInicial] é informado.
+// tela de cadastro, também serve pra editar o perfil
 class TelaCadastro extends StatefulWidget {
   const TelaCadastro({
     super.key,
@@ -35,6 +34,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
   @override
   void initState() {
     super.initState();
+    // editando: já abre com os dados salvos
     final p = widget.perfilInicial;
     _nomeController = TextEditingController(text: p?.nome ?? '');
     _idadeController = TextEditingController(text: p?.idade.toString() ?? '');
@@ -161,6 +161,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
                         border: OutlineInputBorder(),
                       ),
                       validator: (valor) {
+                        // idade entre 1 e 120
                         final idade = int.tryParse(valor?.trim() ?? '');
                         if (idade == null || idade < 1 || idade > 120) {
                           return 'Informe uma idade válida (1 a 120).';
@@ -179,6 +180,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
                         border: OutlineInputBorder(),
                       ),
                       validator: (valor) {
+                        // peso entre 20 e 500 (aceita vírgula)
                         final peso = double.tryParse(
                           (valor ?? '').trim().replaceAll(',', '.'),
                         );
@@ -198,6 +200,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
                         border: OutlineInputBorder(),
                       ),
                       validator: (valor) {
+                        // altura entre 100 e 250
                         final altura = int.tryParse(valor?.trim() ?? '');
                         if (altura == null || altura < 100 || altura > 250) {
                           return 'Informe uma altura válida (100 a 250 cm).';

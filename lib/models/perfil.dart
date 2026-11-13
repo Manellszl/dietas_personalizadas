@@ -15,7 +15,7 @@ class Perfil {
   final double peso;
   final String meta;
 
-  // Campos novos. Podem ficar vazios em perfis criados antes da versão 2.
+  // campos novos (vazios em quem já tinha cadastro)
   final String? sexo; // 'Masculino' ou 'Feminino'
   final int? alturaCm;
   final bool praticaAtividade;
@@ -31,11 +31,11 @@ class Perfil {
     'Melhorar hábitos alimentares',
   ];
 
-  /// Perfis antigos ainda não têm altura nem sexo.
+  // perfil antigo não tem altura nem sexo
   bool get incompleto => sexo == null || alturaCm == null;
 
-  /// Ajuste de calorias da meta, usado no passo 2 (meta calórica).
-  /// Perder: -500. Ganhar (massa ou peso): +300. Demais: manutenção (0).
+  // ajuste de calorias da meta
+  // perder -500, ganhar +300, o resto 0
   int get ajusteCaloricoMeta {
     switch (meta) {
       case 'Perder peso':
@@ -48,7 +48,7 @@ class Perfil {
     }
   }
 
-  /// Multiplicador de atividade pelos dias por semana (usado no passo 2).
+  // multiplicador pelos dias de atividade
   double get multiplicadorAtividade {
     if (!praticaAtividade || diasAtividade <= 0) return 1.2;
     if (diasAtividade <= 2) return 1.375;
@@ -57,7 +57,7 @@ class Perfil {
     return 1.9;
   }
 
-  /// IMC, só quando a altura foi informada.
+  // IMC (só se tiver altura)
   double? get imc {
     final h = alturaCm;
     if (h == null || h <= 0) return null;

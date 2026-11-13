@@ -41,7 +41,7 @@ class PerfilRepository {
             )
           ''');
         },
-        // v1 -> v2: acrescenta colunas sem apagar o perfil já salvo.
+        // só adiciona as colunas novas, não apaga nada
         onUpgrade: (banco, versaoAntiga, versaoNova) async {
           if (versaoAntiga < 2) {
             await banco.execute('ALTER TABLE perfil ADD COLUMN sexo TEXT');
