@@ -26,6 +26,14 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
 
   int _paginaSelecionada = 0;
   int _coposAgua = 0;
+  int _metaAgua = 2000;
+  bool _salvandoAgua = false;
+  bool _inicioCarregando = true;
+  bool _maisSugestoes = false;
+  List<RefeicaoSalva> _refeicoesHoje = [];
+  int _metasMesHoje = 0;
+  int _pedidoInicio = 0;
+  static const _laranja = Color(0xFFF4510B);
 
   DateTime _dataSelecionada = DateTime.now();
   DateTime _mesCalendario = DateTime.now();
@@ -88,11 +96,13 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     super.initState();
     _carregarDia();
     _carregarCalendario();
+    _carregarInicio();
     _timerDia = Timer.periodic(const Duration(seconds: 30), (_) {
       final agora = DateTime.now();
       if (_chaveData(agora) == _chaveData(_ultimoHoje)) return;
       final estavaHoje = _chaveData(_dataSelecionada) == _chaveData(_ultimoHoje);
       _ultimoHoje = agora;
+      _carregarInicio();
       if (estavaHoje && mounted && !_carregando && ModalRoute.of(context)?.isCurrent == true) {
         _selecionarDia(agora);
       }
@@ -117,6 +127,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
         _refeicoes = resultado;
         _carregando = false;
       });
+      await _carregarInicio();
     } catch (e) {
       if (!mounted) return;
 
@@ -161,6 +172,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     if (!possuiAlimentos) {
       await _repository.removerResumoDia(_dataSelecionada);
       await _carregarCalendario();
+      await _carregarInicio();
       return;
     }
 
@@ -172,6 +184,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     );
 
     await _carregarCalendario();
+    await _carregarInicio();
   }
 
   Future<void> _selecionarDia(DateTime data) async {
@@ -281,194 +294,125 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
   // INÍCIO
   // =========================================================
 
+  Future<void> _carregarInicio() async {
+    final pedido = ++_pedidoInicio;
+    final hoje = DateTime.now();
+    try {
+      await _repository.criarRefeicoesIniciaisSeVazio(hoje);
+      final refeicoes = await _repository.buscarRefeicoesDoDia(hoje);
+      final resumos = await _repository.buscarResumosDoMes(hoje);
+      final agua = await _repository.buscarHidratacao(hoje);
+      if (!mounted || pedido != _pedidoInicio || _chaveData(hoje) != _chaveData(DateTime.now())) return;
+      setState(() {
+        _refeicoesHoje = refeicoes;
+        _metasMesHoje = resumos.values.where((r) => r.atingiuMeta && !r.data.isAfter(hoje)).length;
+        if (!_salvandoAgua) {
+          _coposAgua = agua.copos;
+          _metaAgua = agua.metaMl;
+        }
+        _inicioCarregando = false;
+      });
+    } catch (e) {
+      if (!mounted || pedido != _pedidoInicio) return;
+      setState(() => _inicioCarregando = false);
+      _mostrarErro('Erro ao carregar início: $e');
+    }
+  }
+
+  Future<void> _salvarAgua(int copos, int meta) async {
+    if (_salvandoAgua || copos < 0 || meta <= 0) return;
+    final hoje = DateTime.now();
+    setState(() => _salvandoAgua = true);
+    try {
+      await _repository.salvarHidratacao(hoje, copos, meta);
+      if (!mounted) return;
+      if (_chaveData(hoje) == _chaveData(DateTime.now())) {
+        setState(() { _coposAgua = copos; _metaAgua = meta; });
+      }
+    } catch (e) {
+      _mostrarErro('Erro ao salvar hidratação: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _salvandoAgua = false);
+        await _carregarInicio();
+      }
+    }
+  }
+
+  Future<void> _configurarAgua() async {
+    final meta = await showDialog<int>(context: context, builder: (ctx) => SimpleDialog(
+      title: const Text('Meta de hidratação'),
+      children: [for (final ml in {1500, 2000, 2500, 3000, _metaAgua})
+        SimpleDialogOption(onPressed: () => Navigator.pop(ctx, ml), child: Text('$ml ml'))],
+    ));
+    if (mounted && meta != null) await _salvarAgua(_coposAgua, meta);
+  }
+
+  Future<void> _abrirRefeicoesHoje() async {
+    setState(() => _paginaSelecionada = 1);
+    await _selecionarDia(DateTime.now());
+  }
+
+  Widget _cardInicio(Widget filho, {Color cor = Colors.white}) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(color: cor, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFE8E8E8))),
+    child: filho,
+  );
+
+  Widget _resumoInicio(IconData icone, String titulo, String valor, String detalhe) => _cardInicio(Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [Icon(icone, color: _laranja, size: 28), const SizedBox(height: 10), Text(titulo, style: const TextStyle(fontSize: 12, color: Colors.black54)), const SizedBox(height: 5), Text(valor, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)), Text(detalhe, style: const TextStyle(fontSize: 12, color: Colors.black54))],
+  ));
+
   Widget _construirInicio() {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(22),
-          color: const Color(0xFFF4510B),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.access_time, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text(
-                    'Sugestões baseadas na sua meta',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-              SizedBox(height: 10),
-              Text(
-                'Opções para você',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_sugestoes.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFAEB),
-                    border: Border.all(color: const Color(0xFFFFD9A8)),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _sugestoes.first.nome,
-                              style: const TextStyle(
-                                color: Color(0xFF263238),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF4510B),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              _sugestoes.first.categoria,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'Meta: ${widget.perfil.meta}',
-                        style: const TextStyle(
-                          color: Color(0xFF667085),
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _sugestoes.first.descricao,
-                        style: const TextStyle(
-                          color: Color(0xFF475467),
-                          fontSize: 12,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              const SizedBox(height: 16),
-
-              const Text(
-                'Mais sugestões para sua meta',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              ..._sugestoes
-                  .skip(1)
-                  .map(
-                    (sugestao) => Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.restaurant_menu),
-                        title: Text(sugestao.nome),
-                        subtitle: Text(
-                          '${sugestao.categoria} · ${sugestao.descricao}',
-                        ),
-                      ),
-                    ),
-                  ),
-
-              const SizedBox(height: 16),
-
-              _construirControleAgua(),
-
-              const SizedBox(height: 16),
-
-              FilledButton.icon(
-                onPressed: () {
-                  setState(() => _paginaSelecionada = 1);
-                },
-                icon: const Icon(Icons.restaurant_menu),
-                label: const Text('Registrar refeições'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFF4510B),
-                  minimumSize: const Size.fromHeight(48),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+    final hoje = DateTime.now();
+    const dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
+    const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    const dicas = ['Varie os alimentos ao longo da semana.', 'Inclua frutas e verduras nas refeições.', 'Prefira água a bebidas açucaradas.', 'Coma com calma e preste atenção à saciedade.', 'Planeje suas refeições com antecedência.', 'Prefira alimentos in natura ou minimamente processados.', 'Respeite sua fome e mantenha hábitos sustentáveis.'];
+    final nome = widget.perfil.nome.trim().split(RegExp(r'\s+')).first;
+    final total = _refeicoesHoje.fold<double>(0, (s, r) => s + r.calorias).round();
+    final meta = _metaCaloriasDia;
+    final progresso = meta == null || meta <= 0 ? 0.0 : (total / meta).clamp(0.0, 1.0).toDouble();
+    final registradas = _refeicoesHoje.where((r) => r.alimentos.isNotEmpty).length;
+    final saldo = meta == null ? 0 : meta - total;
+    return RefreshIndicator(
+      color: _laranja, onRefresh: _carregarInicio,
+      child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: EdgeInsets.zero, children: [
+        Container(width: double.infinity, color: _laranja, padding: const EdgeInsets.fromLTRB(22, 12, 22, 26), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${dias[hoje.weekday - 1]}, ${hoje.day} de ${meses[hoje.month - 1]}', style: const TextStyle(color: Colors.white70)),
+          const SizedBox(height: 10), Text('Olá, $nome!', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 5), const Text('Sua alimentação, seu equilíbrio.', style: TextStyle(color: Colors.white)),
+        ])),
+        Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (_inicioCarregando) const LinearProgressIndicator(color: _laranja),
+          _cardInicio(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Seu objetivo', style: TextStyle(color: Colors.black54)), Text(widget.perfil.meta, style: const TextStyle(color: _laranja, fontSize: 17, fontWeight: FontWeight.bold))])), const Icon(Icons.flag_outlined, color: _laranja, size: 32)]),
+            const Divider(height: 28),
+            Row(children: [SizedBox(width: 108, height: 108, child: Stack(alignment: Alignment.center, children: [SizedBox.expand(child: CircularProgressIndicator(value: progresso, strokeWidth: 10, color: _laranja, backgroundColor: const Color(0xFFFDE8DC))), Column(mainAxisSize: MainAxisSize.min, children: [Text(meta == null || meta <= 0 ? '—' : '${(total / meta * 100).round()}%', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const Text('da meta', style: TextStyle(fontSize: 11))])])), const SizedBox(width: 18), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Consumidas hoje', style: TextStyle(color: Colors.black54)), Text('$total kcal', style: const TextStyle(fontSize: 23, fontWeight: FontWeight.bold)), Text(meta == null ? 'Complete seu perfil' : 'Meta: $meta kcal'), if (meta != null) Text(saldo > 0 ? 'Restam $saldo kcal até a meta' : saldo == 0 ? 'Valor da meta alcançado' : '${-saldo} kcal acima da meta', style: const TextStyle(color: _laranja, fontWeight: FontWeight.w600))]))]),
+            const SizedBox(height: 20), SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _abrirRefeicoesHoje, style: FilledButton.styleFrom(backgroundColor: _laranja, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(48)), icon: const Icon(Icons.add_circle_outline), label: const Text('Registrar refeições'))),
+          ])),
+          const SizedBox(height: 12), Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: _resumoInicio(Icons.restaurant_menu, 'Refeições de hoje', '$registradas de ${_refeicoesHoje.length}', 'Com alimentos')), const SizedBox(width: 10), Expanded(child: _resumoInicio(Icons.emoji_events_outlined, 'Metas atingidas', '$_metasMesHoje dias', 'Neste mês'))]),
+          const SizedBox(height: 24), const Text('Sugestões para você', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)), const SizedBox(height: 10),
+          if (_sugestoes.isNotEmpty) _cardInicio(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Icon(Icons.restaurant_menu, color: _laranja, size: 30), const Spacer(), Flexible(child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: _laranja, borderRadius: BorderRadius.circular(8)), child: Text(_sugestoes.first.categoria, style: const TextStyle(color: Colors.white))))]), const SizedBox(height: 12), Text(_sugestoes.first.nome, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)), const SizedBox(height: 6), Text(_sugestoes.first.descricao, style: const TextStyle(height: 1.4)), const Divider(height: 24), const Text('Sugestão em destaque', style: TextStyle(color: _laranja, fontWeight: FontWeight.w600))]), cor: const Color(0xFFFFFAEB)),
+          if (_sugestoes.length > 1) ...[const SizedBox(height: 8), OutlinedButton.icon(onPressed: () => setState(() => _maisSugestoes = !_maisSugestoes), style: OutlinedButton.styleFrom(foregroundColor: _laranja), icon: Icon(_maisSugestoes ? Icons.expand_less : Icons.expand_more), label: Text(_maisSugestoes ? 'Ocultar sugestões' : 'Ver mais sugestões')), if (_maisSugestoes) ..._sugestoes.skip(1).map((s) => Card(child: ListTile(leading: const Icon(Icons.restaurant_menu, color: _laranja), title: Text(s.nome), subtitle: Text('${s.categoria} · ${s.descricao}'))))],
+          const SizedBox(height: 16), _construirControleAgua(), const SizedBox(height: 16),
+          _cardInicio(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.lightbulb_outline, color: _laranja, size: 30), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Dica do dia', style: TextStyle(color: _laranja, fontWeight: FontWeight.bold)), const SizedBox(height: 5), Text(dicas[hoje.weekday - 1])]))]), cor: const Color(0xFFFFF0E5)),
+        ])),
+      ]),
     );
   }
 
   Widget _construirControleAgua() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.water_drop, color: Colors.blue, size: 30),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Água',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text('Copos registrados: $_coposAgua'),
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: _coposAgua > 0
-                  ? () => setState(() => _coposAgua--)
-                  : null,
-              icon: const Icon(Icons.remove_circle_outline),
-            ),
-            IconButton(
-              onPressed: () => setState(() => _coposAgua++),
-              icon: const Icon(Icons.add_circle_outline),
-            ),
-          ],
-        ),
-      ),
-    );
+    final ml = _coposAgua * 250;
+    final quantidadeIcones = (_metaAgua / 250).ceil();
+    return _cardInicio(Column(children: [
+      Row(children: [const Icon(Icons.water_drop_outlined, color: Colors.blue, size: 30), const SizedBox(width: 10), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Hidratação', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)), Text('Seu consumo de água hoje', style: TextStyle(color: Colors.black54, fontSize: 12))])), IconButton(onPressed: _salvandoAgua || _inicioCarregando ? null : _configurarAgua, tooltip: 'Alterar meta', icon: const Icon(Icons.settings_outlined))]),
+      const SizedBox(height: 12), Text('${(ml / 1000).toStringAsFixed(2).replaceAll('.', ',')} L', style: const TextStyle(color: Colors.blue, fontSize: 28, fontWeight: FontWeight.bold)), Text('Meta escolhida: $_metaAgua ml'), const SizedBox(height: 12),
+      Wrap(alignment: WrapAlignment.center, children: [for (var i = 0; i < quantidadeIcones; i++) IconButton(visualDensity: VisualDensity.compact, tooltip: 'Registrar ${i + 1} copos', onPressed: _salvandoAgua || _inicioCarregando ? null : () => _salvarAgua(i + 1, _metaAgua), icon: Icon(Icons.local_drink, color: i < _coposAgua ? Colors.blue : Colors.grey.shade300))]),
+      const SizedBox(height: 8), LinearProgressIndicator(value: (ml / _metaAgua).clamp(0.0, 1.0).toDouble(), color: Colors.blue, backgroundColor: const Color(0xFFE0F2FE), minHeight: 8), const SizedBox(height: 12),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [IconButton(onPressed: _coposAgua == 0 || _salvandoAgua || _inicioCarregando ? null : () => _salvarAgua(_coposAgua - 1, _metaAgua), icon: const Icon(Icons.remove_circle_outline, color: Colors.blue)), Column(children: [Text('$_coposAgua copos', style: const TextStyle(fontWeight: FontWeight.bold)), Text('$ml ml · 250 ml por copo')]), IconButton(onPressed: _salvandoAgua || _inicioCarregando ? null : () => _salvarAgua(_coposAgua + 1, _metaAgua), icon: const Icon(Icons.add_circle_outline, color: Colors.blue))]),
+    ]));
   }
 
   // =========================================================
@@ -938,7 +882,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
 
   @override
   Widget build(BuildContext context) {
-    const titulos = ['Sugestões para você', 'Refeições', 'Meu perfil'];
+    const titulos = ['Equilibra', 'Refeições', 'Meu perfil'];
 
     final corCabecalho = _paginaSelecionada == 0
         ? const Color(0xFFF4510B)
@@ -971,10 +915,12 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
 
       bottomNavigationBar: NavigationBar(
         selectedIndex: _paginaSelecionada,
+        indicatorColor: corCabecalho.withValues(alpha: 0.15),
         onDestinationSelected: (indice) {
           setState(() {
             _paginaSelecionada = indice;
           });
+          if (indice == 0) _carregarInicio();
         },
         destinations: const [
           NavigationDestination(

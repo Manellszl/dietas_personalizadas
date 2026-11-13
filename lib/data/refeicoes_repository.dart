@@ -99,7 +99,7 @@ class RefeicoesRepository {
 
     return openDatabase(
       caminho,
-      version: 4,
+      version: 5,
       onConfigure: (banco) async {
         await banco.execute('PRAGMA foreign_keys = ON');
       },
@@ -107,6 +107,7 @@ class RefeicoesRepository {
         await _criarTabelas(banco);
       },
       onUpgrade: (banco, antiga, nova) async {
+        if (antiga < 5) { await _criarHidratacao(banco); }
         if (antiga < 2) {
           await _criarTabelaResumo(banco);
         }
@@ -145,6 +146,23 @@ class RefeicoesRepository {
     await _criarTabelaResumo(banco);
     await _criarCatalogos(banco);
     await _criarFavoritos(banco);
+    await _criarHidratacao(banco);
+  }
+
+  Future<void> _criarHidratacao(DatabaseExecutor banco) async {
+    await banco.execute('CREATE TABLE IF NOT EXISTS hidratacao_diaria (data TEXT PRIMARY KEY, copos INTEGER NOT NULL DEFAULT 0, meta_ml INTEGER NOT NULL DEFAULT 2000)');
+  }
+
+  Future<({int copos, int metaMl})> buscarHidratacao(DateTime data) async {
+    final banco = await _database;
+    final linhas = await banco.query('hidratacao_diaria', where: 'data = ?', whereArgs: [dataComoTexto(data)]);
+    if (linhas.isEmpty) return (copos: 0, metaMl: 2000);
+    return (copos: linhas.first['copos'] as int, metaMl: linhas.first['meta_ml'] as int);
+  }
+
+  Future<void> salvarHidratacao(DateTime data, int copos, int metaMl) async {
+    final banco = await _database;
+    await banco.insert('hidratacao_diaria', {'data': dataComoTexto(data), 'copos': copos, 'meta_ml': metaMl}, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> _criarTabelaResumo(DatabaseExecutor banco) async {
