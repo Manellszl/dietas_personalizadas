@@ -1,30 +1,45 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:dietas_personalizadas/main.dart';
+import 'package:dietas_personalizadas/models/perfil.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('Perfil antigo sem altura e sexo e marcado como incompleto', () {
+    const perfil = Perfil(nome: 'Ana', idade: 30, peso: 60, meta: 'Perder peso');
+    expect(perfil.incompleto, isTrue);
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('Perfil completo nao e incompleto e calcula o IMC', () {
+    const perfil = Perfil(
+      nome: 'Ana',
+      idade: 30,
+      peso: 80,
+      meta: 'Manter o peso',
+      sexo: 'Feminino',
+      alturaCm: 200,
+    );
+    expect(perfil.incompleto, isFalse);
+    expect(perfil.imc, closeTo(20.0, 0.01));
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  test('Ajuste calorico da meta', () {
+    Perfil comMeta(String m) => Perfil(nome: 'A', idade: 30, peso: 70, meta: m);
+    expect(comMeta('Perder peso').ajusteCaloricoMeta, -500);
+    expect(comMeta('Ganhar massa muscular').ajusteCaloricoMeta, 300);
+    expect(comMeta('Manter o peso').ajusteCaloricoMeta, 0);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('Multiplicador de atividade por dias na semana', () {
+    double mult(bool pratica, int dias) => Perfil(
+          nome: 'A',
+          idade: 30,
+          peso: 70,
+          meta: 'Manter o peso',
+          praticaAtividade: pratica,
+          diasAtividade: dias,
+        ).multiplicadorAtividade;
+    expect(mult(false, 0), 1.2);
+    expect(mult(true, 2), 1.375);
+    expect(mult(true, 4), 1.55);
+    expect(mult(true, 6), 1.725);
+    expect(mult(true, 7), 1.9);
   });
 }
